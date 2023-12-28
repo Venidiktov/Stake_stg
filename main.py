@@ -64,7 +64,7 @@ def get_0x_quote(network: str, from_token: str, to_token: str, value: int, slipp
         }
 
         api_key = os.getenv("0X_API_KEY")
-        headers = {'0x-api-key': 'aad170c8-418a-485e-a3f7-b34a61d08c3f'}
+        headers = {'0x-api-key': 'YOUR 0X api'}
 
         url = f"https://{url_chains[network]}api.0x.org/swap/v1/quote?buyToken={to_token}&sellToken={from_token}&sellAmount={value}&slippagePercentage={slippage / 100}"
 
@@ -292,7 +292,7 @@ def wait_for_low_gas_price():
         gas_price_gwei = current_gas_price / 10 ** 9
         print(f"Current gas price: {gas_price_gwei}")
 
-        if gas_price_gwei <= 300:
+        if gas_price_gwei <= 200:  #Выбор лимита газа
             break  # Выходим из цикла, если gas_price_gwei опустилось ниже 200
         else:
             print("Gas price is too high. Waiting for 30 seconds...")
@@ -317,7 +317,7 @@ def create_lock(private_key, value, unlock_time):
         increased_gas_price = int(current_gas_price * 1.1)
 
         tx = {
-            'nonce': nonce,  # Используйте переменную nonce
+            'nonce': nonce,  
             'from': wallet,
             'gasPrice': increased_gas_price,
             'gas': 600000,
@@ -369,7 +369,7 @@ if __name__ == "__main__":
     processed_wallets = 0
     successful_transactions = []  # Список для хранения успешных транзакций
 
-    # Загрузка ABI из файлов
+    
     with open('STG_abi.json', 'r') as file:
         stg_abi = json.load(file)
     with open('lock_abi.json', 'r') as file:
