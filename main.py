@@ -8,6 +8,14 @@ import requests
 from web3.middleware import geth_poa_middleware
 from web3.middleware import latest_block_based_cache_middleware
 
+# Поместите ваш API-ключ 0x сюда
+API_KEY_0X = 'YOUR0xAPI'
+# Максимальный лимит газа
+target_gas_price = 200
+# Здесь задаем минимальное и максимальное значение для свапа
+min_swap_amount = 0.6  # Минимальное значение для свапа
+max_swap_amount = 0.75  # Максимальное значение для свапа
+
 RPC = "https://rpc.ankr.com/polygon"
 web3 = Web3(Web3.HTTPProvider(RPC))
 web3_instance = Web3(Web3.HTTPProvider(RPC))
@@ -24,6 +32,7 @@ with open('STG_abi.json', 'r') as file:
 with open('lock_abi.json', 'r') as file:
     lock_abi = json.load(file)
 
+
 def get_current_gas_price_polygon(web3_instance):
     try:
         # Получение текущей рекомендуемой цены газа с сети Polygon
@@ -37,25 +46,33 @@ def get_current_gas_price_polygon(web3_instance):
 def convert_to_ether_format(amount, web3_instance):
     return web3_instance.to_wei(amount, 'ether')
 
+
 def load_abi_from_file(file_path):
     with open(file_path, 'r') as f:
         STG_abi = json.load(f)
         return STG_abi
 
+
 def gas_price():
     gas_price_wei = get_current_gas_price_polygon(web3)
     return gas_price_wei
+
 
 def get_current_gas_limit():
     latest_block = web3.eth.get_block("latest")
     return latest_block["gasLimit"]
 
+
 RETRY_SWAPS = 5
+
 
 def intToDecimal(qty, decimal):
     return int(qty * 10 ** decimal)
+
+
 def to_checksum_address(address):
     return web3.to_checksum_address(address)
+
 
 def get_0x_quote(network: str, from_token: str, to_token: str, value: int, slippage: float):
     try:
@@ -63,8 +80,7 @@ def get_0x_quote(network: str, from_token: str, to_token: str, value: int, slipp
             "Polygon": "polygon.",
         }
 
-        api_key = os.getenv("0X_API_KEY")
-        headers = {'0x-api-key': 'YOUR 0X api'}
+        headers = {'0x-api-key': API_KEY_0X}  # Используйте API-ключ здесь
 
         url = f"https://{url_chains[network]}api.0x.org/swap/v1/quote?buyToken={to_token}&sellToken={from_token}&sellAmount={value}&slippagePercentage={slippage / 100}"
 
@@ -133,6 +149,7 @@ def zeroX_swap(network: str, private_key: str, _amount: float, retry=0):
 
         return None
 
+
 def check_status_tx(web3_instance, tx_hash, max_retries=10):
     retries = 0
     while retries < max_retries:
@@ -149,6 +166,7 @@ def check_status_tx(web3_instance, tx_hash, max_retries=10):
             retries += 1
 
     return False
+
 
 def get_transaction_receipt(web3_instance, tx_hash, max_retries=10, wait_interval=20):
     retries = 0
@@ -171,6 +189,7 @@ def get_transaction_receipt(web3_instance, tx_hash, max_retries=10, wait_interva
     print(f"Не удалось подтвердить транзакцию после {max_retries} попыток: {tx_hash.hex()}")
     return False
 
+
 def set_max_approval(token_contract_address, spender_address, private_key):
     # Загрузка ABI контракта STG
     with open('STG_abi.json', 'r') as abi_file:
@@ -180,7 +199,7 @@ def set_max_approval(token_contract_address, spender_address, private_key):
     wallet_address = web3.eth.account.from_key(private_key).address
     nonce = web3.eth.get_transaction_count(wallet_address)
 
-    max_allowance = 2**256 - 1  # Максимальное число для approval
+    max_allowance = 2 ** 256 - 1  # Максимальное число для approval
 
     approve_txn = token_contract.functions.approve(spender_address, max_allowance).build_transaction({
         'from': wallet_address,
@@ -200,6 +219,7 @@ def set_max_approval(token_contract_address, spender_address, private_key):
     else:
         print(f"Ошибка при выполнении транзакции одобрения: https://polygonscan.com/tx/{tx_hash.hex()}")
         return False
+
 
 def approve(private_key, spender, amount):
     try:
@@ -243,13 +263,17 @@ def approve(private_key, spender, amount):
         print(f"Произошла ошибка: {e}")
         return False
 
+
 max_retries = 5
+
 
 def token_allowance(token_contract_address, spender_address, private_key):
     wallet_address = web3.eth.account.from_key(private_key).address
-    token_contract = web3.eth.contract(address=Web3.to_checksum_address(token_contract_address), abi=load_abi_from_file('STG_abi.json'))
+    token_contract = web3.eth.contract(address=Web3.to_checksum_address(token_contract_address),
+                                       abi=load_abi_from_file('STG_abi.json'))
     allowance = token_contract.functions.allowance(wallet_address, spender_address).call()
     return allowance
+
 
 def get_balance(private_key):
     wallet_address = web3.eth.account.from_key(private_key).address
@@ -261,6 +285,7 @@ def get_balance(private_key):
     STG_balance = token_balance / 10 ** decimals
     return STG_balance
 
+
 def get_transaction_receipt(web3_instance, tx_hash, max_retries=10, wait_interval=20):
     retries = 0
     while retries < max_retries:
@@ -269,7 +294,7 @@ def get_transaction_receipt(web3_instance, tx_hash, max_retries=10, wait_interva
             if tx_receipt is not None:
                 if tx_receipt.status == 1:
                     # Успешное выполнение транзакции
-                    #print(f"Транзакция подтверждена: https://polygonscan.com/tx/{tx_hash.hex()}")
+                    # print(f"Транзакция подтверждена: https://polygonscan.com/tx/{tx_hash.hex()}")
                     return True
                 else:
                     # Транзакция не удалась
@@ -286,19 +311,22 @@ def get_transaction_receipt(web3_instance, tx_hash, max_retries=10, wait_interva
     print(f"Не удалось подтвердить транзакцию после {max_retries} попыток: {tx_hash.hex()}")
     return False
 
+
 def wait_for_low_gas_price():
     while True:
         current_gas_price = gas_price()
         gas_price_gwei = current_gas_price / 10 ** 9
         print(f"Current gas price: {gas_price_gwei}")
 
-        if gas_price_gwei <= 200:  #Выбор лимита газа
+        if gas_price_gwei <= target_gas_price:  # Выбор лимита газа
             break  # Выходим из цикла, если gas_price_gwei опустилось ниже 200
         else:
             print("Gas price is too high. Waiting for 30 seconds...")
             time.sleep(30)
 
+
 wait_for_low_gas_price()
+
 
 def create_lock(private_key, value, unlock_time):
     try:
@@ -317,7 +345,7 @@ def create_lock(private_key, value, unlock_time):
         increased_gas_price = int(current_gas_price * 1.1)
 
         tx = {
-            'nonce': nonce,  
+            'nonce': nonce,
             'from': wallet,
             'gasPrice': increased_gas_price,
             'gas': 600000,
@@ -340,6 +368,7 @@ def create_lock(private_key, value, unlock_time):
     except Exception as e:
         print(f"Произошла ошибка: {e}")
         return False
+
 
 def set_allowance(private_key, spender, amount, token_address, token_abi):
     try:
@@ -369,7 +398,6 @@ if __name__ == "__main__":
     processed_wallets = 0
     successful_transactions = []  # Список для хранения успешных транзакций
 
-    
     with open('STG_abi.json', 'r') as file:
         stg_abi = json.load(file)
     with open('lock_abi.json', 'r') as file:
@@ -385,11 +413,10 @@ if __name__ == "__main__":
 
         if STG_balance < 0.5:
             # Если баланс STG меньше 0.5, то выполнить свап
-            min_swap_amount = 0.65  # Минимальное значение для свапа
-            max_swap_amount = 0.8  # Максимальное значение для свапа
             swap_amount = random.uniform(min_swap_amount, max_swap_amount)
             swap_tx_hash = zeroX_swap("Polygon", private_key, swap_amount)  # Получаем хэш транзакции свапа
             time.sleep(random.randint(20, 40))
+
             if swap_tx_hash:
                 # Ожидание подтверждения транзакции свапа
                 for _ in range(max_retries):
@@ -398,32 +425,32 @@ if __name__ == "__main__":
                     if tx_receipt is not None:
                         # Транзакция свапа подтверждена, выход из цикла
                         successful_transactions.append(swap_tx_hash)
-                        #print(colored("Транзакция свапа подтверждена", "green"))
+                        # print(colored("Транзакция свапа подтверждена", "green"))
                         break
                     else:
                         # Транзакция свапа ещё не подтверждена, ждем
                         time.sleep(retry_interval)
                         print(colored("Транзакция свапа ещё не подтверждена", "red"))
 
-        # Обновляем баланс STG после свапа
-        STG_balance = get_balance(private_key)
-        time.sleep(random.randint(10, 20))
-        # Установка разрешения на передачу токенов перед стейкингом
-        spender_address = "0x3AB2DA31bBD886A7eDF68a6b60D3CDe657D3A15D"
-        staking_allowance = intToDecimal(STG_balance, 18)
+            # Обновляем баланс STG после свапа
+            STG_balance = get_balance(private_key)
+            time.sleep(random.randint(10, 20))
+    # Установка разрешения на передачу токенов перед стейкингом
+    spender_address = "0x3AB2DA31bBD886A7eDF68a6b60D3CDe657D3A15D"
+    staking_allowance = intToDecimal(STG_balance, 18)
 
-        # Approve spending of STG tokens
-        amount_to_approve = STG_balance
-        approve(private_key, spender_address, amount_to_approve)
+    # Approve spending of STG tokens
+    amount_to_approve = STG_balance
+    approve(private_key, spender_address, amount_to_approve)
 
-        # Ждем подтверждения разрешения
-        #print(f"Ожидание подтверждения разрешения ...")
-        #time.sleep(10)
+    # Ждем подтверждения разрешения
+    # print(f"Ожидание подтверждения разрешения ...")
+    # time.sleep(10)
 
-        # Выполнение стейкинга
-        value = intToDecimal(STG_balance, 18)
-        unlock_time = 1783748761
-        create_lock(private_key, value, unlock_time)
-        time.sleep(random.randint(10, 20))
+    # Выполнение стейкинга
+    value = intToDecimal(STG_balance, 18)
+    unlock_time = 1783748761
+    create_lock(private_key, value, unlock_time)
+    time.sleep(random.randint(10, 20))
 
-    print(colored("Все транзакции успешно завершены.", "green"))
+print(colored("Все транзакции успешно завершены.", "green"))
