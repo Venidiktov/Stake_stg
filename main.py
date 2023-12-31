@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 import random
 from web3 import Web3
 import json
@@ -9,7 +10,7 @@ from web3.middleware import geth_poa_middleware
 from web3.middleware import latest_block_based_cache_middleware
 
 # Поместите ваш API-ключ 0x сюда
-API_KEY_0X = 'YOUR 0xAPI'
+API_KEY_0X = 'YOUR0xAPI'
 # Максимальный лимит газа
 target_gas_price = 200
 # Здесь задаем минимальное и максимальное значение для свапа
@@ -396,6 +397,7 @@ def get_matic_balance(web3_instance, wallet_address):
     balance = web3_instance.eth.get_balance(wallet_address)
     return web3_instance.from_wei(balance, 'ether')
 
+
 if __name__ == "__main__":
     with open("private_keys.txt", "r") as f:
         private_keys_list = [row.strip() for row in f]
@@ -407,33 +409,46 @@ if __name__ == "__main__":
         for private_key in private_keys_list:
             processed_wallets += 1
             wallet_address = web3.eth.account.from_key(private_key).address
-            print(colored(f"Обработка кошелька {wallet_address} ({processed_wallets} из {total_wallets})", "yellow"))
 
-            # Проверка баланса Matic
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+            print(colored(
+                f"{current_time} - Обработка кошелька {wallet_address} ({processed_wallets} из {total_wallets})",
+                "green"))
+
             Matic_balance = get_matic_balance(web3, wallet_address)
             if Matic_balance < min_matic_balance:
-                print(f"Баланс кошелька {wallet_address} в Matic меньше {min_matic_balance} - (Нужно пополнить).")
+                print(colored(
+                    f"{current_time} - Баланс кошелька {wallet_address} в Matic меньше {min_matic_balance} - (Нужно пополнить).",
+                    "green"))
                 insufficient_balance_file.write(f"{wallet_address}\n")
+                print("\n")  # Визуальное разделение
                 continue
 
-            # Проверка и обновление баланса STG
             STG_balance = get_balance(private_key)
-            if STG_balance < 0.05:
+            if STG_balance < 0.5:
                 swap_tx_hash = zeroX_swap('Polygon', private_key, random.uniform(min_swap_amount, max_swap_amount))
                 if not swap_tx_hash:
+                    print("\n")  # Визуальное разделение
                     continue
-                STG_balance = get_balance(private_key)  # Обновляем баланс STG после свапа
 
-            # Выполнение approve и lock, если баланс STG достаточен
-            if STG_balance >= 0.05:
+            # Переносим обновление баланса STG и проверку на выполнение approve и create_lock вне предыдущего условия
+            STG_balance = get_balance(private_key)  # Обновляем баланс STG после свапа или если свап не требуется
+            if STG_balance >= 0.5:
                 if approve(private_key, Lock_contract, STG_balance):
                     if create_lock(private_key, intToDecimal(STG_balance, 18), 1783748761):
-                        print(f"Lock транзакция выполнена для кошелька {wallet_address}")
+                        print(colored(
+                            f"{datetime.now().strftime('%Y-%m-%d %H:%M')} - Lock транзакция выполнена для кошелька {wallet_address}",
+                            "green"))
                     else:
-                        print(f"Ошибка при выполнении lock транзакции для кошелька {wallet_address}")
+                        print(colored(
+                            f"{datetime.now().strftime('%Y-%m-%d %H:%M')} - Ошибка при выполнении lock транзакции для кошелька {wallet_address}",
+                            "green"))
                 else:
-                    print(f"Ошибка при выполнении approve транзакции для кошелька {wallet_address}")
+                    print(colored(
+                        f"{datetime.now().strftime('%Y-%m-%d %H:%M')} - Ошибка при выполнении approve транзакции для кошелька {wallet_address}",
+                        "green"))
 
+            print("\n")  # Визуальное разделение
             time.sleep(random.randint(10, 20))
     # Обновляем баланс STG после свапа
     STG_balance = get_balance(private_key)
@@ -455,4 +470,4 @@ if __name__ == "__main__":
     create_lock(private_key, value, unlock_time)
     time.sleep(random.randint(10, 20))
 
-print(colored("Все транзакции успешно завершены.", "green"))
+print(colored(f"{datetime.now().strftime('%Y-%m-%d %H:%M')} - Все транзакции успешно завершены.", "green"))
