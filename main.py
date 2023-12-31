@@ -14,7 +14,7 @@ API_KEY_0X = 'YOUR 0xAPI'
 target_gas_price = 200
 # Здесь задаем минимальное и максимальное значение для свапа
 min_swap_amount = 0.6  # Минимальное значение для свапа
-max_swap_amount = 0.75  # Максимальное значение для свапа
+max_swap_amount = 0.8  # Максимальное значение для свапа
 # Минимальный баланс Matic для проведения транзакций
 min_matic_balance = 1
 
@@ -407,7 +407,6 @@ if __name__ == "__main__":
         for private_key in private_keys_list:
             processed_wallets += 1
             wallet_address = web3.eth.account.from_key(private_key).address
-
             print(colored(f"Обработка кошелька {wallet_address} ({processed_wallets} из {total_wallets})", "yellow"))
 
             # Проверка баланса Matic
@@ -419,17 +418,21 @@ if __name__ == "__main__":
 
             # Проверка и обновление баланса STG
             STG_balance = get_balance(private_key)
-            if STG_balance < 0.5:
+            if STG_balance < 0.05:
                 swap_tx_hash = zeroX_swap('Polygon', private_key, random.uniform(min_swap_amount, max_swap_amount))
                 if not swap_tx_hash:
                     continue
                 STG_balance = get_balance(private_key)  # Обновляем баланс STG после свапа
 
-            if STG_balance >= 0.5:
-                if not approve(private_key, Lock_contract, STG_balance):
-                    continue
-                if not create_lock(private_key, intToDecimal(STG_balance, 18), 1783748761):
-                    continue
+            # Выполнение approve и lock, если баланс STG достаточен
+            if STG_balance >= 0.05:
+                if approve(private_key, Lock_contract, STG_balance):
+                    if create_lock(private_key, intToDecimal(STG_balance, 18), 1783748761):
+                        print(f"Lock транзакция выполнена для кошелька {wallet_address}")
+                    else:
+                        print(f"Ошибка при выполнении lock транзакции для кошелька {wallet_address}")
+                else:
+                    print(f"Ошибка при выполнении approve транзакции для кошелька {wallet_address}")
 
             time.sleep(random.randint(10, 20))
     # Обновляем баланс STG после свапа
