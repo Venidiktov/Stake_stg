@@ -9,12 +9,14 @@ from web3.middleware import geth_poa_middleware
 from web3.middleware import latest_block_based_cache_middleware
 
 # Поместите ваш API-ключ 0x сюда
-API_KEY_0X = 'YOUR0xAPI'
+API_KEY_0X = 'YOUR 0xAPI'
 # Максимальный лимит газа
 target_gas_price = 200
 # Здесь задаем минимальное и максимальное значение для свапа
 min_swap_amount = 0.6  # Минимальное значение для свапа
 max_swap_amount = 0.75  # Максимальное значение для свапа
+# Минимальный баланс Matic для проведения транзакций
+min_matic_balance = 1
 
 RPC = "https://rpc.ankr.com/polygon"
 web3 = Web3(Web3.HTTPProvider(RPC))
@@ -390,58 +392,55 @@ def set_allowance(private_key, spender, amount, token_address, token_abi):
         return None
 
 
+def get_matic_balance(web3_instance, wallet_address):
+    balance = web3_instance.eth.get_balance(wallet_address)
+    return web3_instance.from_wei(balance, 'ether')
+
 if __name__ == "__main__":
     with open("private_keys.txt", "r") as f:
         private_keys_list = [row.strip() for row in f]
 
     total_wallets = len(private_keys_list)
     processed_wallets = 0
-    successful_transactions = []  # Список для хранения успешных транзакций
 
-    with open('STG_abi.json', 'r') as file:
-        stg_abi = json.load(file)
-    with open('lock_abi.json', 'r') as file:
-        Lock_abi = json.load(file)
+    with open('wallets_with_insufficient_Matic_balance.txt', 'w') as insufficient_balance_file:
+        for private_key in private_keys_list:
+            processed_wallets += 1
+            wallet_address = web3.eth.account.from_key(private_key).address
 
-    for private_key in private_keys_list:
-        processed_wallets += 1
-        wallet_address = web3.eth.account.from_key(private_key).address
+            print(colored(f"Обработка кошелька {wallet_address} ({processed_wallets} из {total_wallets})", "yellow"))
 
-        print(colored(f"Обработка кошелька {wallet_address} ({processed_wallets} из {total_wallets})", "yellow"))
+            # Проверка баланса Matic
+            Matic_balance = get_matic_balance(web3, wallet_address)
+            if Matic_balance < min_matic_balance:
+                print(f"Баланс кошелька {wallet_address} в Matic меньше {min_matic_balance} - (Нужно пополнить).")
+                insufficient_balance_file.write(f"{wallet_address}\n")
+                continue
 
-        STG_balance = get_balance(private_key)  # Получение баланса STG для текущего кошелька
-
-        if STG_balance < 0.5:
-            # Если баланс STG меньше 0.5, то выполнить свап
-            swap_amount = random.uniform(min_swap_amount, max_swap_amount)
-            swap_tx_hash = zeroX_swap("Polygon", private_key, swap_amount)  # Получаем хэш транзакции свапа
-            time.sleep(random.randint(20, 40))
-
-            if swap_tx_hash:
-                # Ожидание подтверждения транзакции свапа
-                for _ in range(max_retries):
-                    tx_receipt = web3.eth.get_transaction_receipt(swap_tx_hash)
-
-                    if tx_receipt is not None:
-                        # Транзакция свапа подтверждена, выход из цикла
-                        successful_transactions.append(swap_tx_hash)
-                        # print(colored("Транзакция свапа подтверждена", "green"))
-                        break
-                    else:
-                        # Транзакция свапа ещё не подтверждена, ждем
-                        time.sleep(retry_interval)
-                        print(colored("Транзакция свапа ещё не подтверждена", "red"))
-
-            # Обновляем баланс STG после свапа
+            # Проверка и обновление баланса STG
             STG_balance = get_balance(private_key)
+            if STG_balance < 0.5:
+                swap_tx_hash = zeroX_swap('Polygon', private_key, random.uniform(min_swap_amount, max_swap_amount))
+                if not swap_tx_hash:
+                    continue
+                STG_balance = get_balance(private_key)  # Обновляем баланс STG после свапа
+
+            if STG_balance >= 0.5:
+                if not approve(private_key, Lock_contract, STG_balance):
+                    continue
+                if not create_lock(private_key, intToDecimal(STG_balance, 18), 1783748761):
+                    continue
+
             time.sleep(random.randint(10, 20))
+    # Обновляем баланс STG после свапа
+    STG_balance = get_balance(private_key)
+    time.sleep(random.randint(10, 20))
     # Установка разрешения на передачу токенов перед стейкингом
-    spender_address = "0x3AB2DA31bBD886A7eDF68a6b60D3CDe657D3A15D"
     staking_allowance = intToDecimal(STG_balance, 18)
 
     # Approve spending of STG tokens
     amount_to_approve = STG_balance
-    approve(private_key, spender_address, amount_to_approve)
+    approve(private_key, Lock_contract, amount_to_approve)
 
     # Ждем подтверждения разрешения
     # print(f"Ожидание подтверждения разрешения ...")
